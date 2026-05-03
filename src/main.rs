@@ -1,6 +1,7 @@
 use clap::Parser;
 use image::{ImageBuffer, Rgb};
 use palette::{IntoColor, Lch, Mix, Srgb};
+use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 #[derive(Parser)]
 #[command(about = "Generate a PNG filled with a vertical LCH gradient")]
@@ -83,12 +84,23 @@ fn rgb_to_lch(rgb: [u8; 3]) -> Lch {
     srgb.into_color()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn lch_to_rgb(lch: Lch) -> [u8; 3] {
     let srgb: Srgb<f32> = lch.into_color();
     [
         (srgb.red.clamp(0.0, 1.0) * 255.0).round() as u8,
         (srgb.green.clamp(0.0, 1.0) * 255.0).round() as u8,
         (srgb.blue.clamp(0.0, 1.0) * 255.0).round() as u8,
+    ]
+}
+
+fn lch_to_rgb_dithered(lch: Lch, rng: &mut SmallRng) -> [u8; 3] {
+    let srgb: Srgb<f32> = lch.into_color();
+    let mut dither = || rng.random_range(-0.5_f32..0.5_f32);
+    [
+        ((srgb.red.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
+        ((srgb.green.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
+        ((srgb.blue.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
     ]
 }
 
@@ -259,6 +271,7 @@ fn main() {
 
     let lch_start = rgb_to_lch(start_rgb);
     let lch_end = rgb_to_lch(end_rgb);
+    let mut rng = SmallRng::from_os_rng();
 
     let img = ImageBuffer::from_fn(width, height, |x, y| {
         if let Some((cols, rows)) = grid {
@@ -267,7 +280,7 @@ fn main() {
             }
         }
         let t = if height <= 1 { 0.0_f32 } else { y as f32 / (height - 1) as f32 };
-        let [r, g, b] = lch_to_rgb(lch_start.mix(lch_end, t));
+        let [r, g, b] = lch_to_rgb_dithered(lch_start.mix(lch_end, t), &mut rng);
         Rgb([r, g, b])
     });
 
