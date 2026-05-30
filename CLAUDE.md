@@ -1,5 +1,7 @@
 # CLAUDE.md — color-png
 
+GitHub: https://github.com/njacobs5074/color-png
+
 ## What this project does
 
 Generates PNG images with a vertical linear color gradient between two hex RGB colors,
