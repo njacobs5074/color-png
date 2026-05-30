@@ -70,6 +70,8 @@ to the human eye, avoiding the muddy mid-tones that straight RGB interpolation c
 introduce.
 
 Out-of-gamut values produced during LCH interpolation are clamped to the sRGB range
-before writing to the PNG. Random dithering is applied during quantization to
-eliminate visible banding — except when both colors are identical (solid fill), in
-which case dithering is skipped.
+before writing to the PNG. Ordered (Bayer 8×8) dithering is applied during
+quantization to eliminate visible banding — except when both colors are identical
+(solid fill), in which case dithering is skipped. Ordered dithering uses a
+deterministic pattern rather than random noise, producing a smoother result with no
+color fringing.

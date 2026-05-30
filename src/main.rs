@@ -1,7 +1,6 @@
 use clap::Parser;
 use image::{ImageBuffer, Rgb};
 use palette::{IntoColor, Lch, Mix, Srgb};
-use rand::{Rng, SeedableRng, rngs::SmallRng};
 
 #[derive(Parser)]
 #[command(about = "Generate a PNG filled with a vertical LCH gradient")]
@@ -101,13 +100,25 @@ fn lch_to_rgb(lch: Lch) -> [u8; 3] {
     ]
 }
 
-fn lch_to_rgb_dithered(lch: Lch, rng: &mut SmallRng) -> [u8; 3] {
+#[rustfmt::skip]
+const BAYER_8X8: [u8; 64] = [
+     0, 32,  8, 40,  2, 34, 10, 42,
+    48, 16, 56, 24, 50, 18, 58, 26,
+    12, 44,  4, 36, 14, 46,  6, 38,
+    60, 28, 52, 20, 62, 30, 54, 22,
+     3, 35, 11, 43,  1, 33,  9, 41,
+    51, 19, 59, 27, 49, 17, 57, 25,
+    15, 47,  7, 39, 13, 45,  5, 37,
+    63, 31, 55, 23, 61, 29, 53, 21,
+];
+
+fn lch_to_rgb_dithered(lch: Lch, x: u32, y: u32) -> [u8; 3] {
     let srgb: Srgb<f32> = lch.into_color();
-    let mut dither = || rng.random_range(-0.5_f32..0.5_f32);
+    let d = BAYER_8X8[(y as usize % 8) * 8 + (x as usize % 8)] as f32 / 64.0 - 0.5;
     [
-        ((srgb.red.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
-        ((srgb.green.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
-        ((srgb.blue.clamp(0.0, 1.0) * 255.0 + dither()).round().clamp(0.0, 255.0)) as u8,
+        ((srgb.red.clamp(0.0, 1.0) * 255.0 + d).round().clamp(0.0, 255.0)) as u8,
+        ((srgb.green.clamp(0.0, 1.0) * 255.0 + d).round().clamp(0.0, 255.0)) as u8,
+        ((srgb.blue.clamp(0.0, 1.0) * 255.0 + d).round().clamp(0.0, 255.0)) as u8,
     ]
 }
 
@@ -297,7 +308,6 @@ fn main() {
     let lch_start = rgb_to_lch(start_rgb);
     let lch_end = rgb_to_lch(end_rgb);
     let dither = start_rgb != end_rgb;
-    let mut rng = SmallRng::from_os_rng();
 
     let img = ImageBuffer::from_fn(width, height, |x, y| {
         if let Some((cols, rows)) = grid {
@@ -307,7 +317,7 @@ fn main() {
         }
         let t = if height <= 1 { 0.0_f32 } else { y as f32 / (height - 1) as f32 };
         let mixed = lch_start.mix(lch_end, t);
-        let [r, g, b] = if dither { lch_to_rgb_dithered(mixed, &mut rng) } else { lch_to_rgb(mixed) };
+        let [r, g, b] = if dither { lch_to_rgb_dithered(mixed, x, y) } else { lch_to_rgb(mixed) };
         Rgb([r, g, b])
     });
 
