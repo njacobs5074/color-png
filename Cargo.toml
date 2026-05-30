@@ -2,6 +2,7 @@
 name = "color-png"
 version = "0.1.0"
 edition = "2024"
+authors = ["Nick Jacobs <nick.h.jacobs@gmail.com>", "Claude Sonnet 4.6 <noreply@anthropic.com>"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
