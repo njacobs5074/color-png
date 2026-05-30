@@ -13,19 +13,18 @@ cargo install --path .
 Or run directly:
 
 ```bash
-cargo run -- <START_COLOR> <END_COLOR> <DIMENSIONS> <OUTPUT>
+cargo run -- <COLORS> <DIMENSIONS> <OUTPUT>
 ```
 
 ## Usage
 
 ```
-color-png <START_COLOR> <END_COLOR> <DIMENSIONS> <OUTPUT> [OPTIONS]
+color-png <COLORS> <DIMENSIONS> <OUTPUT> [OPTIONS]
 ```
 
 | Argument | Description |
 |---|---|
-| `START_COLOR` | Top color as a hex RGB code, e.g. `#ff0000` |
-| `END_COLOR` | Bottom color as a hex RGB code, e.g. `#0000ff` |
+| `COLORS` | `START` or `START:END` — hex RGB colors, e.g. `#ff0000` or `#ff0000:#0000ff`. When only a start color is given, the output is a solid fill. |
 | `DIMENSIONS` | `HEIGHTxWIDTH` (e.g. `600x800`) or `HEIGHT WIDTH` as two separate args |
 | `OUTPUT` | Path for the output PNG file |
 
@@ -41,19 +40,25 @@ color-png <START_COLOR> <END_COLOR> <DIMENSIONS> <OUTPUT> [OPTIONS]
 Red-to-blue gradient, 300 wide × 600 tall:
 
 ```bash
-color-png "#ff0000" "#0000ff" 300x600 gradient.png
+color-png "#ff0000:#0000ff" 300x600 gradient.png
 ```
 
-Same gradient with a white grid overlay:
+Solid red fill (no gradient):
 
 ```bash
-color-png "#ff0000" "#0000ff" 300x600 gradient.png --grid 50x50 --grid-color "#ffffff"
+color-png "#ff0000" 300x600 solid.png
+```
+
+Gradient with a white grid overlay:
+
+```bash
+color-png "#ff0000:#0000ff" 300x600 gradient.png --grid 50x50 --grid-color "#ffffff"
 ```
 
 Dimensions as separate arguments:
 
 ```bash
-color-png "#ff0000" "#0000ff" 600 300 gradient.png
+color-png "#ff0000:#0000ff" 600 300 gradient.png
 ```
 
 ## Color interpolation
@@ -65,4 +70,6 @@ to the human eye, avoiding the muddy mid-tones that straight RGB interpolation c
 introduce.
 
 Out-of-gamut values produced during LCH interpolation are clamped to the sRGB range
-before writing to the PNG.
+before writing to the PNG. Random dithering is applied during quantization to
+eliminate visible banding — except when both colors are identical (solid fill), in
+which case dithering is skipped.

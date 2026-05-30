@@ -6,14 +6,12 @@ use rand::{Rng, SeedableRng, rngs::SmallRng};
 #[derive(Parser)]
 #[command(about = "Generate a PNG filled with a vertical LCH gradient")]
 #[command(after_help = "\
+COLORS: START[:END] where each color is a hex RGB value, e.g. #ff0000 or #ff0000:#0000ff
 DIMENSIONS: either HEIGHTxWIDTH (e.g. 600x800) or HEIGHT WIDTH as separate args
 GRID: COLSxROWS cell size in pixels, e.g. --grid 10x10 draws lines every 10 pixels")]
 struct Args {
-    /// Start (top) hex color, e.g. #ff0000
-    start_color: String,
-
-    /// End (bottom) hex color, e.g. #0000ff
-    end_color: String,
+    /// Color(s): START or START:END hex RGB, e.g. #ff0000 or #ff0000:#0000ff
+    colors: String,
 
     /// Dimensions and output path: HEIGHT WIDTH OUTPUT  or  HEIGHTxWIDTH OUTPUT
     #[arg(num_args = 2..=3)]
@@ -37,6 +35,16 @@ fn parse_hex_color(s: &str) -> Result<[u8; 3], String> {
     let g = u8::from_str_radix(&s[2..4], 16).map_err(|e| e.to_string())?;
     let b = u8::from_str_radix(&s[4..6], 16).map_err(|e| e.to_string())?;
     Ok([r, g, b])
+}
+
+fn parse_colors(s: &str) -> Result<([u8; 3], [u8; 3]), String> {
+    match s.split_once(':') {
+        Some((start, end)) => Ok((parse_hex_color(start)?, parse_hex_color(end)?)),
+        None => {
+            let rgb = parse_hex_color(s)?;
+            Ok((rgb, rgb))
+        }
+    }
 }
 
 fn parse_dimensions(rest: &[String]) -> Result<(u32, u32, &str), String> {
@@ -84,7 +92,6 @@ fn rgb_to_lch(rgb: [u8; 3]) -> Lch {
     srgb.into_color()
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 fn lch_to_rgb(lch: Lch) -> [u8; 3] {
     let srgb: Srgb<f32> = lch.into_color();
     [
@@ -133,6 +140,28 @@ mod tests {
     #[test]
     fn hex_color_invalid_chars() {
         assert!(parse_hex_color("#zzzzzz").is_err());
+    }
+
+    // --- parse_colors ---
+
+    #[test]
+    fn colors_start_and_end() {
+        assert_eq!(parse_colors("#ff0000:#0000ff"), Ok(([255, 0, 0], [0, 0, 255])));
+    }
+
+    #[test]
+    fn colors_start_only() {
+        assert_eq!(parse_colors("#ff0000"), Ok(([255, 0, 0], [255, 0, 0])));
+    }
+
+    #[test]
+    fn colors_invalid_start() {
+        assert!(parse_colors("#zzzzzz:#0000ff").is_err());
+    }
+
+    #[test]
+    fn colors_invalid_end() {
+        assert!(parse_colors("#ff0000:#zzzzzz").is_err());
     }
 
     // --- parse_positive_int ---
@@ -243,12 +272,8 @@ mod tests {
 fn main() {
     let args = Args::parse();
 
-    let start_rgb = parse_hex_color(&args.start_color).unwrap_or_else(|e| {
-        eprintln!("Invalid start_color '{}': {e}", args.start_color);
-        std::process::exit(1);
-    });
-    let end_rgb = parse_hex_color(&args.end_color).unwrap_or_else(|e| {
-        eprintln!("Invalid end_color '{}': {e}", args.end_color);
+    let (start_rgb, end_rgb) = parse_colors(&args.colors).unwrap_or_else(|e| {
+        eprintln!("Invalid colors '{}': {e}", args.colors);
         std::process::exit(1);
     });
 
@@ -271,6 +296,7 @@ fn main() {
 
     let lch_start = rgb_to_lch(start_rgb);
     let lch_end = rgb_to_lch(end_rgb);
+    let dither = start_rgb != end_rgb;
     let mut rng = SmallRng::from_os_rng();
 
     let img = ImageBuffer::from_fn(width, height, |x, y| {
@@ -280,7 +306,8 @@ fn main() {
             }
         }
         let t = if height <= 1 { 0.0_f32 } else { y as f32 / (height - 1) as f32 };
-        let [r, g, b] = lch_to_rgb_dithered(lch_start.mix(lch_end, t), &mut rng);
+        let mixed = lch_start.mix(lch_end, t);
+        let [r, g, b] = if dither { lch_to_rgb_dithered(mixed, &mut rng) } else { lch_to_rgb(mixed) };
         Rgb([r, g, b])
     });
 
